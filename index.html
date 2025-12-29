@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SCA Studio Interactive</title>
+    <style>
+        /* --- 1. 基础环境设置 --- */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #a8e6cf;
+            background-image:
+                radial-gradient(circle at center, rgba(255, 255, 255, 0.2) 0%, rgba(0, 0, 0, 0.05) 100%),
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.12'/%3E%3C/svg%3E");
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            width: 95%;
+            max-width: 1600px;
+            aspect-ratio: 16 / 9;
+            align-items: stretch;
+        }
+
+        /* --- 2. 左侧文字区 --- */
+        .text-section {
+            flex: 0.8;
+            text-align: right;
+            padding-right: 40px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-end;
+        }
+
+        .text-section h1 {
+            margin: 0;
+            font-family: 'Impact', 'Arial Black', sans-serif;
+            font-size: 3.2vw;
+            line-height: 1.1;
+            letter-spacing: 1px;
+            color: #fff;
+            text-shadow:
+                2px 2px 0px #1a535c,
+                4px 4px 0px rgba(0, 0, 0, 0.15);
+            transform: rotate(-2deg);
+        }
+
+        .text-section span {
+            display: inline-block;
+            font-family: 'Georgia', serif;
+            font-size: 0.6em;
+            font-style: italic;
+            color: #1a535c;
+            background: #F0E68C;
+            padding: 2px 10px;
+            border-radius: 20px;
+            margin: 10px 0;
+            text-shadow: none;
+            transform: rotate(0deg);
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .text-section p {
+            font-size: 1vw;
+            margin-top: 25px;
+            color: #1a535c;
+            font-weight: bold;
+            background-color: rgba(255, 255, 255, 0.4);
+            padding: 5px 15px;
+            border-radius: 4px;
+            transform: rotate(-1deg);
+        }
+
+        /* --- 3. 右侧框架区 --- */
+        .grid-section {
+            flex: 2.4;
+            position: relative;
+            padding: 20px 0 20px 20px;
+        }
+
+        .grid-frame {
+            border: none;
+            background-color: #F0E68C;
+            padding: 30px;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow:
+                inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+                1px 1px 0px rgba(0, 0, 0, 0.1),
+                2px 2px 0px rgba(0, 0, 0, 0.1),
+                0 20px 50px rgba(0, 0, 0, 0.25);
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+            aspect-ratio: 7 / 5;
+            background-color: #40E0D0;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: inset 3px 3px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* --- 4. 图片容器 --- */
+        .img-box {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #808080;
+            overflow: hidden;
+            transition: opacity 0.4s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        .img-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        /* 交互 A: 鼠标移入网格 -> 所有图变暗 */
+        .grid-container:hover .img-box {
+            opacity: 0.5;
+            filter: grayscale(80%);
+        }
+
+        /* 交互 B: 鼠标移入特定图 -> 恢复高亮 */
+        .grid-container .img-box:hover {
+            opacity: 1;
+            filter: grayscale(0%);
+            z-index: 2;
+        }
+
+        /* --- 5. 内部可交互物件 (热点) --- */
+        .hotspot {
+            position: absolute;
+            width: 40px;
+            /* 默认大小，可针对每个单独调整 */
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px dashed rgba(255, 255, 255, 0.8);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 10;
+        }
+
+        .hotspot:hover {
+            transform: scale(1.15);
+            background-color: rgba(255, 133, 133, 0.3);
+            border-color: #d64545;
+            box-shadow: 0 0 15px #ff6b6b;
+        }
+
+        /* --- 6. 弹窗样式 --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(26, 83, 92, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-card {
+            background-color: #fff;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
+            width: 90%;
+            max-width: 380px;
+            padding: 0;
+            border-radius: 12px;
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3), 0 0 0 8px rgba(255, 255, 255, 0.4);
+            transform: translateY(50px) scale(0.9);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            overflow: hidden;
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: translateY(0) scale(1);
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 10;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .close-btn:hover {
+            transform: scale(1.1) rotate(90deg);
+        }
+
+        .modal-image-wrapper {
+            width: 100%;
+            height: auto;
+            background-color: #f0f0f0;
+            position: relative;
+            border-bottom: 5px solid #F0E68C;
+        }
+
+        .modal-image-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .modal-text-content {
+            padding: 25px 30px;
+            text-align: center;
+        }
+
+        .modal-title {
+            margin: 0;
+            color: #1a535c;
+            font-family: 'Impact', sans-serif;
+            font-size: 1.8rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .modal-divider {
+            width: 40px;
+            height: 4px;
+            background: #40E0D0;
+            margin: 15px auto;
+            border-radius: 2px;
+        }
+
+        .modal-desc {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #555;
+            margin-bottom: 25px;
+        }
+
+        .modal-action-btn {
+            display: block;
+            width: 100%;
+            padding: 15px 0;
+            background-color: #ff6b6b;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            transition: all 0.2s;
+            border-bottom: 6px solid #d64545;
+        }
+
+        .modal-action-btn:hover {
+            background-color: #ff8585;
+            transform: translateY(-2px);
+            border-bottom: 8px solid #d64545;
+        }
+
+        .modal-action-btn:active {
+            transform: translateY(4px);
+            border-bottom: 2px solid #d64545;
+        }
+
+        @media (max-width: 900px) {
+            .container {
+                flex-direction: column;
+                height: auto;
+                padding: 50px 0;
+                align-items: center;
+            }
+
+            .text-section {
+                padding-right: 0;
+                padding-bottom: 30px;
+                text-align: center;
+                align-items: center;
+            }
+
+            .grid-section {
+                padding: 0;
+            }
+        }
+
+        /* --- 7. 边缘气泡评价系统 --- */
+        .bubble-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+            overflow: hidden;
+        }
+
+        .teacher-bubble {
+            position: absolute;
+            background-color: #fff;
+            color: #333;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: bold;
+            font-family: 'Comic Sans MS', sans-serif;
+            max-width: 250px;
+            box-shadow: 4px 4px 0px rgba(0, 0, 0, 0.1), 0 5px 15px rgba(0, 0, 0, 0.2);
+            border: 2px solid rgba(0, 0, 0, 0.05);
+            opacity: 0;
+        }
+
+        .teacher-bubble::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border: 8px solid transparent;
+        }
+
+        .bubble-left {
+            left: 20px;
+            border-left: 5px solid #ff6b6b;
+        }
+
+        .bubble-left::after {
+            left: -16px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-right-color: #ff6b6b;
+        }
+
+        .bubble-right {
+            right: 20px;
+            border-right: 5px solid #4ecdc4;
+        }
+
+        .bubble-right::after {
+            right: -16px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-left-color: #4ecdc4;
+        }
+
+        .bubble-top {
+            top: 20px;
+            border-top: 5px solid #ffe66d;
+        }
+
+        .bubble-top::after {
+            top: -16px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-bottom-color: #ffe66d;
+        }
+
+        .bubble-bottom {
+            bottom: 20px;
+            border-bottom: 5px solid #1a535c;
+        }
+
+        .bubble-bottom::after {
+            bottom: -16px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-top-color: #1a535c;
+        }
+
+        @keyframes popInLeft {
+            0% {
+                transform: translateX(-150%) rotate(-5deg);
+                opacity: 0;
+            }
+
+            15% {
+                transform: translateX(0) rotate(0deg);
+                opacity: 1;
+            }
+
+            85% {
+                transform: translateX(0) rotate(0deg);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateX(-150%);
+                opacity: 0;
+            }
+        }
+
+        @keyframes popInRight {
+            0% {
+                transform: translateX(150%) rotate(5deg);
+                opacity: 0;
+            }
+
+            15% {
+                transform: translateX(0) rotate(0deg);
+                opacity: 1;
+            }
+
+            85% {
+                transform: translateX(0) rotate(0deg);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateX(150%);
+                opacity: 0;
+            }
+        }
+
+        @keyframes popInTop {
+            0% {
+                transform: translateY(-150%);
+                opacity: 0;
+            }
+
+            15% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            85% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(-150%);
+                opacity: 0;
+            }
+        }
+
+        @keyframes popInBottom {
+            0% {
+                transform: translateY(150%);
+                opacity: 0;
+            }
+
+            15% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            85% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translateY(150%);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="bubble-layer" class="bubble-layer"></div>
+
+    <div class="container">
+        <div class="text-section">
+            <h1>
+                STUDENT<br>
+                STUDIO<br>
+                <span>of</span><br>
+                ENTERTAINMENT<br>
+                DESIGN
+            </h1>
+            <p>School of Creativity and Art</p>
+        </div>
+
+        <div class="grid-section">
+            <div class="grid-frame">
+                <div class="grid-container">
+
+                    <div class="img-box">
+                        <img src="images/1.png" alt="Year 1">
+
+                        <div class="hotspot" style="top: 12%; left: 39%; width: 70px; height: 50px;" data-title="基础绘图"
+                            data-desc="设计始于笔尖。通过大量的素描透视与色彩构成练习，学生建立起大脑与手部肌肉的直接连接，培养对光影关系、空间结构和审美直觉的敏锐感知。"
+                            data-img="images/1.1.png" data-link="https://mp.weixin.qq.com/s/64izNusGS8-O8aouNuWDpg">
+                        </div>
+
+                        <div class="hotspot" style="top: 12%; left: 65%; width: 50px; height: 50px;"
+                            data-title="创意表达与实践"
+                            data-desc="从二维平面跨越到三维空间。学生初次接触 3D 建模软件，并利用 3D 打印技术将屏幕里的虚拟多边形转化为实体，旨在直观地理解体积感、物品结构与物理材质的特性。"
+                            data-img="images/1.2.png" data-link="https://mp.weixin.qq.com/s/t3n_aBpF8Xx6ARiNdsGXsg">
+                        </div>
+
+                        <div class="hotspot" style="top: 43%; left: 80%; width: 50px; height: 60px;"
+                            data-title="影像研究与创作"
+                            data-desc="从“观看者”向“创作者”的蜕变。课程以影视经典案例为养分，解析视觉故事的底层逻辑。学生在实践中学习分镜绘制、镜头调度与光影氛围，并跨越性地引入 Unity 引擎，将个人的叙事风格转化为完整的动态短片作品。"
+                            data-img="images/1.3.png"
+                            data-link="https://sca.shanghaitech.edu.cn/2023/1020/c13894a1083933/page.htm"></div>
+
+                        <div class="hotspot" style="top: 12%; left: 13%; width: 100px; height: 50px;" data-title="角色设计"
+                            data-desc="角色是故事的灵魂。课程融合了传统纸绘、数字板绘与偶型构建（Maquette）等多种媒介。学生通过研究不同文化背景下的艺术形式，建立严谨的设计流程，旨在创作出兼具独特造型特征与深层叙事表现力的角色形象。"
+                            data-img="images/1.4.png"
+                            data-link="https://sca.shanghaitech.edu.cn/2023/0903/c13894a1080718/page.htm"></div>
+
+                        <div class="hotspot" style="top: 74%; left: 67%; width: 60px; height: 50px;"
+                            data-title="理工通识与编程思维"
+                            data-desc="艺术背后的理性基石。涵盖高等数学、线性代数、普通物理及 Python 编程等课程。这些看似枯燥的公式，实则是计算机图形学（Graphics）、物理渲染（PBR）与生物设计的底层法则。它们构建了严密的逻辑闭环，支撑设计师在未来创造出既“好看”又“合理”的虚拟世界。"
+                            data-img="images/1.5.png" data-link="#"></div>
+                    </div>
+
+
+                    <div class="img-box">
+                        <img src="images/2.png" alt="Year 2">
+
+                        <div class="hotspot" style="top: 12%; left: 12%; width: 108px; height: 75px;"
+                            data-title="设计思维与实景娱乐" data-desc="从灵感到落地的系统方法论。课程以“设计思维”五部曲为核心，引导学生通过用户画像（Persona）与同理地图挖掘痛点，并在 Ideate 阶段引入 AI 工具辅助发散创意。最终结合 Arduino 等硬件编程技术，快速迭代 Prototype 并进行真实场景下的用户测试，完成小型实景娱乐装置的从 0 到 1。
+" data-img="images/2.1.png" data-link="#"></div>
+
+                        <div class="hotspot" style="top: 12%; left: 68%; width: 60px; height: 60px;" data-title="流动影像设计"
+                            data-desc="探索时间的艺术。作为专业必修课，学生在此构建对影像、动态图形（Motion Graphics）及生成视觉的综合认知。通过影音剪辑与工作坊实践，学习如何将静态视觉转化为流动的叙事语言，创作出兼具专业审美与创意表达的影像装置艺术作品。"
+                            data-img="images/2.2.png"
+                            data-link="https://sca.shanghaitech.edu.cn/2023/0922/c13894a1082407/page.htm"></div>
+
+                        <div class="hotspot" style="top: 65%; left: 9%; width: 50px; height: 80px;"
+                            data-title="游戏化设计与平台研究"
+                            data-desc="在限制中塑造体验。面对“游戏化”这一核心议题，学生需要重新审视软硬件平台的边界与可能性。通过 Unity 引擎的深入应用，设计师们不再受困于既定规则，而是尝试在虚拟与现实的夹缝中填充内容，创作出能够引发玩家深层互动的游戏化体验作品。"
+                            data-img="images/2.3.png" data-link="https://mp.weixin.qq.com/s/uImZC7myh3ubfgy7krMKfA">
+                        </div>
+
+                        <div class="hotspot" style="top: 68%; left: 66%; width: 70px; height: 73px;"
+                            data-title="视觉传达与品牌识别"
+                            data-desc="视觉语言的语法课。从图形、色彩到字体的微观美学，再到现当代设计风格的宏观剖析。课程结合人工智能风格训练，引导学生打造独特的个人视觉品牌（Personal Branding），并尝试动态 Logo 设计，为未来的职业化展示打下坚实的视觉基础。"
+                            data-img="images/2.4.png" data-link="#"></div>
+                    </div>
+
+
+                    <div class="img-box">
+                        <img src="images/3.png" alt="Year 3">
+
+                        <div class="hotspot" style="top: 12%; left: 10%; width: 125px; height: 73px;"
+                            data-title="跨媒介科普装置"
+                            data-desc="走出校园的实战演练。课程与上海天文馆深度合作，学生不再是纸上谈兵，而是挑战将晦涩的天文学概念转化为直观的互动装置。从面包板上的电路搭建到展馆内的最终落地，这是一次艺术、科技与科普教育的完美跨界融合。"
+                            data-img="images/3.1.png" data-link="https://mp.weixin.qq.com/s/NDbAVALlqGDLng4EVMe9Mw">
+                        </div>
+
+                        <div class="hotspot" style="top: 12%; left: 40%; width: 100px; height: 50px;"
+                            data-title="混合现实叙事"
+                            data-desc="打破“第四面墙”。课程将传统电影语言与前沿的混合现实（MR）技术相结合。学生不仅要撰写剧本和拍摄影像，更要通过空间计算与交互设计，让观众从“观看故事”转变为“走进故事”，创造出具有深度的沉浸式体验。"
+                            data-img="images/3.2.png" data-link="#"></div>
+
+                        <div class="hotspot" style="top: 63%; left: 9%; width: 50px; height: 80px;"
+                            data-title="交互架构与体验研究"
+                            data-desc="构建无形的骨架。这是一门深度探索交互逻辑的高级课程。通过 Figma 等工具，学生从听觉、视觉、体感等多维度解构用户行为，学习如何在复杂的信息架构中找到创新与实用的平衡点，为用户体验（UX）打造坚实的理论地基。"
+                            data-img="images/3.3.png" data-link="#"></div>
+
+                        <div class="hotspot" style="top: 38%; left: 48%; width: 75px; height: 65px;"
+                            data-title="全球视野与学术交换"
+                            data-desc="设计无国界。代表着“3+1”国际学术交换项目。学生暂时收起行囊，走出舒适区，去体验不同的文化语境与设计教学体系。这段旅程将极大地拓宽设计视野，为大四的毕业设计注入多元化的国际视角。"
+                            data-img="images/3.4.png" data-link="#"></div>
+                    </div>
+
+
+                    <div class="img-box">
+                        <img src="images/4.png" alt="Year 4">
+
+                        <div class="hotspot" style="top: 37%; left: 40%; width: 100px; height: 100px;"
+                            data-title="城市更新与社会创新"
+                            data-desc="技能的集大成与社会责任的回归。这是一门整合型进阶 Studio，学生走出象牙塔，深入美术馆与石库门街区等真实城市场域。通过将混合现实（MR）、交互机制与本土文化深度结合，设计不再仅仅是娱乐，而是成为了连接社区情感、激活城市文化的媒介。"
+                            data-img="images/4.1.png" data-link="#"></div>
+
+                        <div class="hotspot" style="top: 12%; left: 22%; width: 43px; height: 55px;" data-title="专业作品集"
+                            data-desc="设计师的第二张脸。这不仅仅是过往作业的堆砌，而是对四年设计哲学的深度梳理与再创造。一本成熟的作品集展示了从混乱的草图调研到精密的最终渲染的全过程，它向业界证明了你不仅拥有卓越的审美，更具备解决复杂问题的逻辑闭环能力。
+" data-img="images/4.2.png" data-link="#"></div>
+
+                        <div class="hotspot" style="top: 12%; left: 70%; width: 100px; height: 60px;" data-title="毕业设计"
+                            data-desc="大学生涯的最终乐章。学生需独立定义一个具有前瞻性的设计命题，并像一个真正的项目经理一样，统筹调研、策划、技术开发与视觉呈现。这是对学生综合素养的极限压力测试，也是其设计价值观的终极表达。"
+                            data-img="images/4.3.png" data-link="https://mp.weixin.qq.com/s/mIrvW_amzRq0YnZ9O2-Ljg">
+                        </div>
+
+                        <div class="hotspot" style="top: 63%; left: 65%; width: 133px; height: 88px;" data-title="未来通行证"
+                            data-desc="下一站：无限可能。桌角的 Offer 信不仅是一纸录用通知，更是业界与顶尖学府对学生专业价值的最高认可。无论是投身游戏巨头、科技独角兽，还是奔赴海外深造，它们标志着这名学生已完成了从“受教育者”到“行业创造者”的华丽转身。"
+                            data-img="images/4.4.png" data-link="https://mp.weixin.qq.com/s/54qIdt3DIKLK8d-GUUpY8g">
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="infoModal">
+        <div class="modal-card">
+            <button class="close-btn">&times;</button>
+            <div class="modal-image-wrapper">
+                <img id="modal-img" src="" alt="Detail Image">
+            </div>
+            <div class="modal-text-content">
+                <h2 class="modal-title">标题占位</h2>
+                <div class="modal-divider"></div>
+                <p class="modal-desc">内容描述占位...</p>
+            </div>
+            <a id="modal-link" href="#" target="_blank" class="modal-action-btn">
+                View Project ➔
+            </a>
+        </div>
+    </div>
+
+    <script>
+        /* --- 交互脚本 --- */
+        const hotspots = document.querySelectorAll('.hotspot');
+        const modalOverlay = document.getElementById('infoModal');
+        const modalTitle = document.querySelector('.modal-title');
+        const modalDesc = document.querySelector('.modal-desc');
+        const modalImg = document.getElementById('modal-img');
+        const modalLink = document.getElementById('modal-link');
+        const closeBtn = document.querySelector('.close-btn');
+
+        // 点击热点
+        hotspots.forEach(spot => {
+            spot.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                // 1. 填充标题和描述
+                modalTitle.textContent = spot.getAttribute('data-title');
+                modalDesc.textContent = spot.getAttribute('data-desc');
+
+                // 2. 填充图片 (如果没有配图，用占位图)
+                const imgSrc = spot.getAttribute('data-img') || 'https://placehold.co/600x400/eee/999?text=No+Image';
+                modalImg.src = imgSrc;
+
+                // 3. 填充链接
+                const linkHref = spot.getAttribute('data-link');
+                if (linkHref && linkHref !== "#" && linkHref !== "") {
+                    modalLink.href = linkHref;
+                    modalLink.style.display = 'block';
+                    modalLink.textContent = "View Project ➔";
+                } else {
+                    modalLink.style.display = 'none'; // 如果链接是 # 或空，隐藏按钮
+                }
+
+                // 4. 显示弹窗
+                modalOverlay.classList.add('active');
+            });
+        });
+
+        // 关闭弹窗
+        closeBtn.addEventListener('click', () => {
+            modalOverlay.classList.remove('active');
+        });
+
+        // 点击背景关闭
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) {
+                modalOverlay.classList.remove('active');
+            }
+        });
+
+        /* --- 边缘气泡逻辑 (保持不变) --- */
+        const teacherComments = [
+            "这里的结构还需要再推敲一下。",
+            "Deadline is approaching!",
+            "Where is your reference?",
+            "注意人体比例！",
+            "不要为了细节丢失整体。",
+            "Nice color palette!",
+            "这个创意很有意思，继续深入。",
+            "准备熬夜吧。",
+            "这版不如第一版。",
+            "那不就相当于什么都没做吗？",
+            "不要用这个字体，不专业。",
+            "Good job!",
+            "你懂设计还是我懂设计？",
+            "你们可以更大胆一点。",
+            "你这做得太丑了！",
+            "这太牛了！",
+            "我们干票大的。",
+            "lovely",
+            "我去，太辛苦了。",
+            "没几天了。",
+            "真的没时间了。",
+            "好担心你不过延毕。",
+            "我们创艺的学生就是厉害👍"
+        ];
+
+        function spawnBubble() {
+            const container = document.getElementById('bubble-layer');
+            if (!container) return;
+            const el = document.createElement('div');
+            el.classList.add('teacher-bubble');
+            el.innerText = teacherComments[Math.floor(Math.random() * teacherComments.length)];
+            const side = Math.floor(Math.random() * 4);
+            const offset = Math.floor(Math.random() * 70) + 15;
+            const duration = 4 + Math.random() * 2;
+            el.style.animationDuration = duration + 's';
+            el.style.animationTimingFunction = "cubic-bezier(0.68, -0.55, 0.27, 1.55)";
+            switch (side) {
+                case 0: el.classList.add('bubble-left'); el.style.top = offset + '%'; el.style.animationName = 'popInLeft'; break;
+                case 1: el.classList.add('bubble-right'); el.style.top = offset + '%'; el.style.animationName = 'popInRight'; break;
+                case 2: el.classList.add('bubble-top'); el.style.left = offset + '%'; el.style.animationName = 'popInTop'; break;
+                case 3: el.classList.add('bubble-bottom'); el.style.left = offset + '%'; el.style.animationName = 'popInBottom'; break;
+            }
+            container.appendChild(el);
+            el.addEventListener('animationend', () => { el.remove(); });
+        }
+        setInterval(spawnBubble, 2500);
+        setTimeout(spawnBubble, 800);
+    </script>
+
+</body>
+
+</html>
